@@ -30,20 +30,96 @@ function get_local_cachyos_version
     echo $date_version
 end
 
+# === Helper functions for Proton-GE version comparison ===
+
+function compare_ge_versions
+    # Compare Proton-GE versions (format "major-minor", e.g., "9-27")
+    # Returns 1 if remote ($argv[1]) > local ($argv[2]), 0 if equal, -1 if local > remote
+    set remote_version $argv[1]
+    set local_version $argv[2]
+
+    # Validate remote version
+    if not string match -qr '^[0-9]+-[0-9]+$' "$remote_version"
+        echo 1
+        return
+    end
+
+    # Validate local version
+    if not string match -qr '^[0-9]+-[0-9]+$' "$local_version"
+        echo 1
+        return
+    end
+
+    # Split versions into major and minor parts
+    set remote_parts (string split '-' $remote_version)
+    set local_parts (string split '-' $local_version)
+
+    set remote_major $remote_parts[1]
+    set remote_minor $remote_parts[2]
+    set local_major $local_parts[1]
+    set local_minor $local_parts[2]
+
+    # Compare major versions
+    if test $remote_major -gt $local_major
+        echo 1
+        return
+    else if test $remote_major -lt $local_major
+        echo -1
+        return
+    end
+
+    # If major versions are equal, compare minor versions
+    if test $remote_minor -gt $local_minor
+        echo 1
+        return
+    else if test $remote_minor -lt $local_minor
+        echo -1
+        return
+    end
+
+    echo 0
+end
+
+function get_local_ge_version
+    # Find local GE-Proton* folder and extract version string "major-minor" (e.g., "9-27")
+    set target_dir "$HOME/.local/share/Steam/compatibilitytools.d"
+    # Match only GE-ProtonX-Y folders (e.g., GE-Proton9-27)
+    set folder (find $target_dir -maxdepth 1 -type d -name "GE-Proton[0-9]*-[0-9]*" | sort -V | tail -n 1)
+    if test -z "$folder"
+        echo ""
+        return
+    end
+    set folder_name (basename $folder)
+    # Extract first matching version in format "major-minor" (e.g., "9-27") after "GE-Proton"
+    set ge_version (string match -r 'GE-Proton([0-9]+-[0-9]+)' $folder_name | string replace 'GE-Proton' '' | head -n 1)
+    # Validate version format (e.g., "X-Y")
+    if test -z "$ge_version"
+        echo ""
+        return
+    end
+    if not string match -qr '^[0-9]+-[0-9]+$' "$ge_version"
+        echo ""
+        return
+    end
+    echo $ge_version
+end
 
 # === Update Selection Prompt ===
 echo "Select an option:"
-echo "1) Update both Syntist Proton-TKG and Proton-CachyOS"
-echo "2) Update only Syntist Proton-TKG (Need Token)"
-echo "3) Update only Proton-CachyOS"
-echo -n "Enter your choice (1-3): "
+echo "1) Update both Syntist Proton-TKG and Proton-CachyOS SLR"
+echo "2) Update only Syntist Proton-TKG SET A TOKEN"
+echo "3) Update only Proton-CachyOS SLR"
+echo "4) Update only Proton-GE"
+echo "5) Update Syntist Proton-TKG, Proton-CachyOS SLR, and Proton-GE"
+echo -n "Enter your choice (1-5): "
 read -l USER_INPUT
 
 set INSTALL_TKG 0
 set INSTALL_CACHY 0
+set INSTALL_GE 0
 switch $USER_INPUT
     case 1
-        echo "Proceeding with both Syntist Proton-TKG and Proton-CachyOS updates..."
+        echo "Proceeding with Syntist Proton-TKG and Proton-CachyOS updates..."
         set INSTALL_TKG 1
         set INSTALL_CACHY 1
     case 2
@@ -52,8 +128,16 @@ switch $USER_INPUT
     case 3
         echo "Proceeding with only Proton-CachyOS update..."
         set INSTALL_CACHY 1
+    case 4
+        echo "Proceeding with only Proton-GE update..."
+        set INSTALL_GE 1
+    case 5
+        echo "Proceeding with Syntist Proton-TKG, Proton-CachyOS, and Proton-GE updates..."
+        set INSTALL_TKG 1
+        set INSTALL_CACHY 1
+        set INSTALL_GE 1
     case '*'
-        echo "Invalid input. Please enter 1, 2, or 3."
+        echo "Invalid input. Please enter 1, 2, 3, 4, or 5."
         exit 1
 end
 
@@ -262,5 +346,76 @@ if test $INSTALL_CACHY -eq 1
 
         echo "Proton-CachyOS installed in $TARGET_DIR."
         echo "Ensure PROTON_STANDALONE_START = 1 and UMU_NO_RUNTIME = 1 in Env Var"
+    end
+end
+
+# === Install Proton-GE if selected ===
+if test $INSTALL_GE -eq 1
+    set GE_REPO "GloriousEggroll/proton-ge-custom"
+    set GE_RELEASE_API "https://api.github.com/repos/$GE_REPO/releases/latest"
+
+    echo "Fetching the latest Proton-GE release..."
+    set RELEASE_INFO (curl -s -H "Accept: application/vnd.github+json" $GE_RELEASE_API)
+
+    if test -z "$RELEASE_INFO"
+        echo "Failed to fetch Proton-GE release information."
+        exit 1
+    end
+
+    set ASSET_URL (echo $RELEASE_INFO | jq -r '.assets[] | select(.name | test("GE-Proton[0-9]+-[0-9]+\\\.tar\\\.gz")) | .browser_download_url')
+    set ASSET_NAME (echo $RELEASE_INFO | jq -r '.assets[] | select(.name | test("GE-Proton[0-9]+-[0-9]+\\\.tar\\\.gz")) | .name')
+
+    if test -z "$ASSET_URL"
+        echo "No matching Proton-GE .tar.gz asset found."
+        exit 1
+    end
+
+    set remote_ge_version (string match -r '[0-9]+-[0-9]+' $ASSET_NAME | string trim)
+    set local_ge_version (get_local_ge_version | string trim)
+
+    if test -n "$local_ge_version"
+        set cmp_result (compare_ge_versions "$remote_ge_version" "$local_ge_version")
+        if test $cmp_result -le 0
+            echo "Local Proton-GE version ($local_ge_version) is up-to-date or newer than remote ($remote_ge_version). Skipping update."
+            set INSTALL_GE 0
+        else
+            echo "Remote Proton-GE version ($remote_ge_version) is newer than local ($local_ge_version). Proceeding with update."
+        end
+    else
+        echo "No local Proton-GE version found. Proceeding with update."
+    end
+
+    if test $INSTALL_GE -eq 1
+        echo "Checking for existing GE-Proton* folders..."
+        set OLD_GE_FOLDERS (find $TARGET_DIR -maxdepth 1 -type d -name "GE-Proton*")
+        if test -n "$OLD_GE_FOLDERS"
+            echo "Deleting old Proton-GE folders: $OLD_GE_FOLDERS"
+            rm -rf $OLD_GE_FOLDERS
+        else
+            echo "No existing GE-Proton* folders found."
+        end
+
+        set TAR_FILE "$TARGET_DIR/$ASSET_NAME"
+        echo "Downloading Proton-GE asset to $TAR_FILE..."
+        curl -L $ASSET_URL -o $TAR_FILE
+
+        if test $status -ne 0
+            echo "Failed to download the Proton-GE asset."
+            exit 1
+        end
+
+        echo "Extracting $TAR_FILE..."
+        tar -xzf $TAR_FILE -C $TARGET_DIR
+        if test $status -ne 0
+            echo "Failed to extract the Proton-GE .tar.gz file."
+            rm $TAR_FILE
+            exit 1
+        end
+
+        echo "Cleaning up Proton-GE files..."
+        rm $TAR_FILE
+
+        echo "Proton-GE installed in $TARGET_DIR."
+        echo "Ensure PROTON_STANDALONE_START = 1 in Env Var"
     end
 end
