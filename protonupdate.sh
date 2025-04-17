@@ -1,9 +1,40 @@
 #!/usr/bin/env fish
 
+# === Helper functions for Proton-CachyOS version comparison ===
+
+function compare_cachyos_versions
+    # Compare CachyOS versions as integers (dates)
+    # Returns 1 if $argv[1] > $argv[2], 0 if equal, -1 if less
+    set v1 (math $argv[1])
+    set v2 (math $argv[2])
+    if test $v1 -gt $v2
+        echo 1
+    else if test $v1 -lt $v2
+        echo -1
+    else
+        echo 0
+    end
+end
+
+function get_local_cachyos_version
+    # Find local proton-cachyos* folder and extract date version from folder name
+    set target_dir "$HOME/.local/share/Steam/compatibilitytools.d"
+    set folder (find $target_dir -maxdepth 1 -type d -name "proton-cachyos*" | head -n 1)
+    if test -z "$folder"
+        echo ""
+        return
+    end
+    set folder_name (basename $folder)
+    # Extract date string from folder name, e.g. proton-cachyos-20250402-slr-x86_64_v3
+    set date_version (string match -r '[0-9]{8}' $folder_name)
+    echo $date_version
+end
+
+
 # === Update Selection Prompt ===
 echo "Select an option:"
 echo "1) Update both Syntist Proton-TKG and Proton-CachyOS"
-echo "2) Update only Syntist Proton-TKG (ensure you have a Github Token)"
+echo "2) Update only Syntist Proton-TKG (Need Token)"
 echo "3) Update only Proton-CachyOS"
 echo -n "Enter your choice (1-3): "
 read -l USER_INPUT
@@ -26,16 +57,14 @@ switch $USER_INPUT
         exit 1
 end
 
+set TARGET_DIR "$HOME/.local/share/Steam/compatibilitytools.d"
+mkdir -p $TARGET_DIR
+
 # === Install Proton-TKG if selected ===
 if test $INSTALL_TKG -eq 1
-    # GitHub repository details
     set REPO "Syntist/proton-tkg-builder"
     set GITHUB_API "https://api.github.com/repos/$REPO/actions/runs"
-    # YOU NEED A TOKEN FOR ARTIFACTS
     set TOKEN "NEED TOKEN"
-
-    set TARGET_DIR "$HOME/.local/share/Steam/compatibilitytools.d"
-    mkdir -p $TARGET_DIR
 
     echo "Fetching the latest workflow runs for Syntist Proton-TKG..."
     set RUNS (curl -s -H "Authorization: token $TOKEN" \
@@ -57,81 +86,118 @@ if test $INSTALL_TKG -eq 1
     set RUN_ID (echo $LATEST_RUN | jq -r '.id')
     echo "Latest successful run ID for Syntist Proton-TKG: $RUN_ID"
 
-    if test (echo $LATEST_RUN | jq -r '.conclusion') = "success"
-        echo "Checking for existing proton_tkg_* folders..."
-        set OLD_FOLDERS (find $TARGET_DIR -maxdepth 1 -type d -name "proton_tkg_*")
-        if test -n "$OLD_FOLDERS"
-            echo "Deleting old Proton-TKG folders: $OLD_FOLDERS"
-            rm -rf $OLD_FOLDERS
-        else
-            echo "No existing proton_tkg_* folders found."
-        end
+    # Check existing installed Proton-TKG folder for embedded run ID
+    set installed_folder (find $TARGET_DIR -maxdepth 1 -type d -name "proton_tkg_*" | head -n 1)
+    if test -z "$installed_folder"
+        echo "No existing Proton-TKG installation found. Proceeding with update."
+        set proceed_update 1
     else
-        echo "Latest Syntist Proton-TKG build did not succeed. Skipping folder deletion."
+        set folder_name (basename $installed_folder)
+        # Extract run ID from folder name, expecting pattern like proton_tkg_10.5.r5_run12345
+        set run_id_str (string match -r 'run[0-9]+' $folder_name)
+        if test -z "$run_id_str"
+            echo "Existing Proton-TKG folder does not contain run ID. Proceeding with update."
+            set proceed_update 1
+        else
+            set local_run_id (string replace 'run' '' $run_id_str)
+            if test $RUN_ID -le $local_run_id
+                echo "Installed Proton-TKG is up to date (run ID $local_run_id). Skipping update."
+                set proceed_update 0
+            else
+                echo "Newer Proton-TKG update detected (local run ID $local_run_id < latest run ID $RUN_ID). Proceeding with update."
+                set proceed_update 1
+            end
+        end
     end
 
-    set ARTIFACTS_URL "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts"
-    echo "Fetching artifacts for run $RUN_ID..."
-    set ARTIFACT_INFO (curl -s -H "Authorization: token $TOKEN" \
-        -H "Accept: application/vnd.github+json" \
-        $ARTIFACTS_URL)
+    if test $proceed_update -eq 1
+        if test (echo $LATEST_RUN | jq -r '.conclusion') = "success"
+            echo "Deleting old Proton-TKG folders..."
+            set OLD_FOLDERS (find $TARGET_DIR -maxdepth 1 -type d -name "proton_tkg_*")
+            if test -n "$OLD_FOLDERS"
+                rm -rf $OLD_FOLDERS
+                echo "Old Proton-TKG folders deleted."
+            else
+                echo "No old Proton-TKG folders found."
+            end
+        else
+            echo "Latest Proton-TKG build did not succeed. Aborting update."
+            exit 1
+        end
 
-    set ARTIFACT_URL (echo $ARTIFACT_INFO | jq -r '.artifacts[0].archive_download_url')
-    set ARTIFACT_NAME (echo $ARTIFACT_INFO | jq -r '.artifacts[0].name')
+        set ARTIFACTS_URL "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts"
+        echo "Fetching artifacts for run $RUN_ID..."
+        set ARTIFACT_INFO (curl -s -H "Authorization: token $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            $ARTIFACTS_URL)
 
-    if test -z "$ARTIFACT_URL"
-        echo "No artifacts found for this Syntist Proton-TKG run."
-        exit 1
-    end
+        set ARTIFACT_URL (echo $ARTIFACT_INFO | jq -r '.artifacts[0].archive_download_url')
+        set ARTIFACT_NAME (echo $ARTIFACT_INFO | jq -r '.artifacts[0].name')
 
-    set ZIP_FILE "$TARGET_DIR/$ARTIFACT_NAME.zip"
-    echo "Downloading Syntist Proton-TKG artifact to $ZIP_FILE..."
-    curl -L -H "Authorization: token $TOKEN" \
-        -H "Accept: application/vnd.github+json" \
-        $ARTIFACT_URL -o $ZIP_FILE
+        if test -z "$ARTIFACT_URL"
+            echo "No artifacts found for this Proton-TKG run."
+            exit 1
+        end
 
-    if test $status -ne 0
-        echo "Failed to download the Syntist Proton-TKG artifact."
-        exit 1
-    end
+        set ZIP_FILE "$TARGET_DIR/$ARTIFACT_NAME.zip"
+        echo "Downloading Proton-TKG artifact to $ZIP_FILE..."
+        curl -L -H "Authorization: token $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            $ARTIFACT_URL -o $ZIP_FILE
 
-    echo "Extracting $ZIP_FILE..."
-    unzip -q $ZIP_FILE -d $TARGET_DIR
-    if test $status -ne 0
-        echo "Failed to extract the Syntist Proton-TKG .zip file."
+        if test $status -ne 0
+            echo "Failed to download Proton-TKG artifact."
+            exit 1
+        end
+
+        echo "Extracting $ZIP_FILE..."
+        unzip -q $ZIP_FILE -d $TARGET_DIR
+        if test $status -ne 0
+            echo "Failed to extract Proton-TKG .zip file."
+            rm $ZIP_FILE
+            exit 1
+        end
+
+        set TAR_FILE (find $TARGET_DIR -maxdepth 1 -type f -name "*.tar" | head -n 1)
+        if test -z "$TAR_FILE"
+            echo "No .tar file found inside Proton-TKG .zip."
+            rm $ZIP_FILE
+            exit 1
+        end
+
+        echo "Extracting $TAR_FILE..."
+        tar -xf $TAR_FILE -C $TARGET_DIR
+        if test $status -ne 0
+            echo "Failed to extract Proton-TKG .tar file."
+            rm $ZIP_FILE
+            exit 1
+        end
+
+        # Clean up zip and tar files
         rm $ZIP_FILE
-        exit 1
+        rm $TAR_FILE
+
+        # Rename extracted folder to include run ID
+        # Find the extracted proton_tkg_* folder (should be only one)
+        set extracted_folder (find $TARGET_DIR -maxdepth 1 -type d -name "proton_tkg_*" | head -n 1)
+        if test -z "$extracted_folder"
+            echo "Could not find extracted Proton-TKG folder to rename."
+            exit 1
+        end
+
+        set new_folder_name (basename $extracted_folder)_run$RUN_ID
+        mv $extracted_folder "$TARGET_DIR/$new_folder_name"
+        echo "Renamed Proton-TKG folder to $new_folder_name"
+
+        echo "Proton-TKG installed in $TARGET_DIR."
+        echo "Ensure PROTON_STANDALONE_START = 1 and UMU_NO_RUNTIME = 1 in Env Var"
     end
-
-    set TAR_FILE (find $TARGET_DIR -maxdepth 1 -type f -name "*.tar" | head -n 1)
-    if test -z "$TAR_FILE"
-        echo "No .tar file found inside the Syntist Proton-TKG .zip."
-        rm $ZIP_FILE
-        exit 1
-    end
-
-    echo "Extracting $TAR_FILE..."
-    tar -xf $TAR_FILE -C $TARGET_DIR
-    if test $status -ne 0
-        echo "Failed to extract the Syntist Proton-TKG .tar file."
-        rm $ZIP_FILE
-        exit 1
-    end
-
-    echo "Cleaning up Syntist Proton-TKG files..."
-    rm $ZIP_FILE
-    rm $TAR_FILE
-
-    echo "Syntist Proton-TKG installed in $TARGET_DIR."
-    echo "Ensure PROTON_STANDALONE_START = 1 and UMU_NO_RUNTIME = 1 in Env Var"
 end
 
 # === Install Proton-CachyOS if selected ===
 if test $INSTALL_CACHY -eq 1
     set CACHY_REPO "CachyOS/proton-cachyos"
     set CACHY_RELEASE_API "https://api.github.com/repos/$CACHY_REPO/releases/latest"
-    set TARGET_DIR "$HOME/.local/share/Steam/compatibilitytools.d"
-    mkdir -p $TARGET_DIR
 
     echo "Fetching the latest Proton-CachyOS release..."
     set RELEASE_INFO (curl -s -H "Accept: application/vnd.github+json" $CACHY_RELEASE_API)
@@ -149,35 +215,52 @@ if test $INSTALL_CACHY -eq 1
         exit 1
     end
 
-    echo "Checking for existing proton-cachyos* folders..."
-    set OLD_CACHY_FOLDERS (find $TARGET_DIR -maxdepth 1 -type d -name "proton-cachyos*")
-    if test -n "$OLD_CACHY_FOLDERS"
-        echo "Deleting old Proton-CachyOS folders: $OLD_CACHY_FOLDERS"
-        rm -rf $OLD_CACHY_FOLDERS
+    set remote_cachyos_version (string match -r '[0-9]{8}' $ASSET_NAME)
+    set local_cachyos_version (get_local_cachyos_version)
+
+    if test -n "$local_cachyos_version"
+        set cmp_result (compare_cachyos_versions $remote_cachyos_version $local_cachyos_version)
+        if test $cmp_result -le 0
+            echo "Local Proton-CachyOS version ($local_cachyos_version) is up-to-date or newer than remote ($remote_cachyos_version). Skipping update."
+            set INSTALL_CACHY 0
+        else
+            echo "Remote Proton-CachyOS version ($remote_cachyos_version) is newer than local ($local_cachyos_version). Proceeding with update."
+        end
     else
-        echo "No existing proton-cachyos* folders found."
+        echo "No local Proton-CachyOS version found. Proceeding with update."
     end
 
-    set TAR_FILE "$TARGET_DIR/$ASSET_NAME"
-    echo "Downloading Proton-CachyOS asset to $TAR_FILE..."
-    curl -L $ASSET_URL -o $TAR_FILE
+    if test $INSTALL_CACHY -eq 1
+        echo "Checking for existing proton-cachyos* folders..."
+        set OLD_CACHY_FOLDERS (find $TARGET_DIR -maxdepth 1 -type d -name "proton-cachyos*")
+        if test -n "$OLD_CACHY_FOLDERS"
+            echo "Deleting old Proton-CachyOS folders: $OLD_CACHY_FOLDERS"
+            rm -rf $OLD_CACHY_FOLDERS
+        else
+            echo "No existing proton-cachyos* folders found."
+        end
 
-    if test $status -ne 0
-        echo "Failed to download the Proton-CachyOS asset."
-        exit 1
-    end
+        set TAR_FILE "$TARGET_DIR/$ASSET_NAME"
+        echo "Downloading Proton-CachyOS asset to $TAR_FILE..."
+        curl -L $ASSET_URL -o $TAR_FILE
 
-    echo "Extracting $TAR_FILE..."
-    tar -xJf $TAR_FILE -C $TARGET_DIR
-    if test $status -ne 0
-        echo "Failed to extract the Proton-CachyOS .tar.xz file."
+        if test $status -ne 0
+            echo "Failed to download the Proton-CachyOS asset."
+            exit 1
+        end
+
+        echo "Extracting $TAR_FILE..."
+        tar -xJf $TAR_FILE -C $TARGET_DIR
+        if test $status -ne 0
+            echo "Failed to extract the Proton-CachyOS .tar.xz file."
+            rm $TAR_FILE
+            exit 1
+        end
+
+        echo "Cleaning up Proton-CachyOS files..."
         rm $TAR_FILE
-        exit 1
+
+        echo "Proton-CachyOS installed in $TARGET_DIR."
+        echo "Ensure PROTON_STANDALONE_START = 1 and UMU_NO_RUNTIME = 1 in Env Var"
     end
-
-    echo "Cleaning up Proton-CachyOS files..."
-    rm $TAR_FILE
-
-    echo "Proton-CachyOS installed in $TARGET_DIR."
-    echo "Ensure PROTON_STANDALONE_START = 1 and UMU_NO_RUNTIME = 1 in Env Var"
 end
