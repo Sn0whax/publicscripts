@@ -5,9 +5,9 @@ set TOKEN "YOUR_TOKEN_HERE"
 
 # === Update Selection Prompt ===
 echo "Select an option:"
-echo "1) Update both Syntist Proton-TKG and Proton-CachyOS"
+echo "1) Update both Syntist Proton-TKG and Proton-CachyOS SLR v3"
 echo "2) Update only Syntist Proton-TKG (Requires GitHub API Token)"
-echo "3) Update only Proton-CachyOS"
+echo "3) Update only Proton-CachyOS SLR v3"
 echo "4) Update only Proton-GE"
 echo "5) Update Syntist Proton-TKG, Proton-CachyOS, and Proton-GE"
 echo -n "Enter your choice (1-5): "
