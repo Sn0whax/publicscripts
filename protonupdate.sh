@@ -1,116 +1,15 @@
 #!/usr/bin/env fish
 
-# === Helper functions for Proton-CachyOS version comparison ===
-
-function compare_cachyos_versions
-    # Compare CachyOS versions as integers (dates)
-    # Returns 1 if $argv[1] > $argv[2], 0 if equal, -1 if less
-    set v1 (math $argv[1])
-    set v2 (math $argv[2])
-    if test $v1 -gt $v2
-        echo 1
-    else if test $v1 -lt $v2
-        echo -1
-    else
-        echo 0
-    end
-end
-
-function get_local_cachyos_version
-    # Find local proton-cachyos* folder and extract date version from folder name
-    set target_dir "$HOME/.local/share/Steam/compatibilitytools.d"
-    set folder (find $target_dir -maxdepth 1 -type d -name "proton-cachyos*" | head -n 1)
-    if test -z "$folder"
-        echo ""
-        return
-    end
-    set folder_name (basename $folder)
-    # Extract date string from folder name, e.g. proton-cachyos-20250402-slr-x86_64_v3
-    set date_version (string match -r '[0-9]{8}' $folder_name)
-    echo $date_version
-end
-
-# === Helper functions for Proton-GE version comparison ===
-
-function compare_ge_versions
-    # Compare Proton-GE versions (format "major-minor", e.g., "9-27")
-    # Returns 1 if remote ($argv[1]) > local ($argv[2]), 0 if equal, -1 if local > remote
-    set remote_version $argv[1]
-    set local_version $argv[2]
-
-    # Validate remote version
-    if not string match -qr '^[0-9]+-[0-9]+$' "$remote_version"
-        echo 1
-        return
-    end
-
-    # Validate local version
-    if not string match -qr '^[0-9]+-[0-9]+$' "$local_version"
-        echo 1
-        return
-    end
-
-    # Split versions into major and minor parts
-    set remote_parts (string split '-' $remote_version)
-    set local_parts (string split '-' $local_version)
-
-    set remote_major $remote_parts[1]
-    set remote_minor $remote_parts[2]
-    set local_major $local_parts[1]
-    set local_minor $local_parts[2]
-
-    # Compare major versions
-    if test $remote_major -gt $local_major
-        echo 1
-        return
-    else if test $remote_major -lt $local_major
-        echo -1
-        return
-    end
-
-    # If major versions are equal, compare minor versions
-    if test $remote_minor -gt $local_minor
-        echo 1
-        return
-    else if test $remote_minor -lt $local_minor
-        echo -1
-        return
-    end
-
-    echo 0
-end
-
-function get_local_ge_version
-    # Find local GE-Proton* folder and extract version string "major-minor" (e.g., "9-27")
-    set target_dir "$HOME/.local/share/Steam/compatibilitytools.d"
-    # Match only GE-ProtonX-Y folders (e.g., GE-Proton9-27)
-    set folder (find $target_dir -maxdepth 1 -type d -name "GE-Proton[0-9]*-[0-9]*" | sort -V | tail -n 1)
-    if test -z "$folder"
-        echo ""
-        return
-    end
-    set folder_name (basename $folder)
-    # Extract first matching version in format "major-minor" (e.g., "9-27") after "GE-Proton"
-    set ge_version (string match -r 'GE-Proton([0-9]+-[0-9]+)' $folder_name | string replace 'GE-Proton' '' | head -n 1)
-    # Validate version format (e.g., "X-Y")
-    if test -z "$ge_version"
-        echo ""
-        return
-    end
-    if not string match -qr '^[0-9]+-[0-9]+$' "$ge_version"
-        echo ""
-        return
-    end
-    echo $ge_version
-end
+# GitHub API token for Proton-TKG update (required for Syntist Proton-TKG)
+set TOKEN "YOUR_TOKEN_HERE"
 
 # === Update Selection Prompt ===
 echo "Select an option:"
-echo "1) Update both Syntist Proton-TKG and Proton-CachyOS SLR"
-echo "2) Update only Syntist Proton-TKG SET A TOKEN"
-echo "3) Update only Proton-CachyOS SLR"
+echo "1) Update both Syntist Proton-TKG and Proton-CachyOS"
+echo "2) Update only Syntist Proton-TKG"
+echo "3) Update only Proton-CachyOS"
 echo "4) Update only Proton-GE"
-echo "5) Update Syntist Proton-TKG, Proton-CachyOS SLR, and Proton-GE"
+echo "5) Update Syntist Proton-TKG, Proton-CachyOS, and Proton-GE"
 echo -n "Enter your choice (1-5): "
 read -l USER_INPUT
 
@@ -148,7 +47,6 @@ mkdir -p $TARGET_DIR
 if test $INSTALL_TKG -eq 1
     set REPO "Syntist/proton-tkg-builder"
     set GITHUB_API "https://api.github.com/repos/$REPO/actions/runs"
-    set TOKEN "NEED TOKEN"
 
     echo "Fetching the latest workflow runs for Syntist Proton-TKG..."
     set RUNS (curl -s -H "Authorization: token $TOKEN" \
@@ -278,6 +176,35 @@ if test $INSTALL_TKG -eq 1
     end
 end
 
+# === Proton-CachyOS Helper Functions ===
+function compare_cachyos_versions
+    # Compare CachyOS versions as integers (dates)
+    # Returns 1 if $argv[1] > $argv[2], 0 if equal, -1 if less
+    set v1 (math $argv[1])
+    set v2 (math $argv[2])
+    if test $v1 -gt $v2
+        echo 1
+    else if test $v1 -lt $v2
+        echo -1
+    else
+        echo 0
+    end
+end
+
+function get_local_cachyos_version
+    # Find local proton-cachyos* folder and extract date version from folder name
+    set target_dir "$HOME/.local/share/Steam/compatibilitytools.d"
+    set folder (find $target_dir -maxdepth 1 -type d -name "proton-cachyos*" | head -n 1)
+    if test -z "$folder"
+        echo ""
+        return
+    end
+    set folder_name (basename $folder)
+    # Extract date string from folder name, e.g. proton-cachyos-20250402-slr-x86_64_v3
+    set date_version (string match -r '[0-9]{8}' $folder_name)
+    echo $date_version
+end
+
 # === Install Proton-CachyOS if selected ===
 if test $INSTALL_CACHY -eq 1
     set CACHY_REPO "CachyOS/proton-cachyos"
@@ -347,6 +274,79 @@ if test $INSTALL_CACHY -eq 1
         echo "Proton-CachyOS installed in $TARGET_DIR."
         echo "Ensure PROTON_STANDALONE_START = 1 and UMU_NO_RUNTIME = 1 in Env Var"
     end
+end
+
+# === Proton-GE Helper Functions ===
+function compare_ge_versions
+    # Compare Proton-GE versions (format "major-minor", e.g., "9-27")
+    # Returns 1 if remote ($argv[1]) > local ($argv[2]), 0 if equal, -1 if local > remote
+    set remote_version $argv[1]
+    set local_version $argv[2]
+
+    # Validate remote version
+    if not string match -qr '^[0-9]+-[0-9]+$' "$remote_version"
+        echo 1
+        return
+    end
+
+    # Validate local version
+    if not string match -qr '^[0-9]+-[0-9]+$' "$local_version"
+        echo 1
+        return
+    end
+
+    # Split versions into major and minor parts
+    set remote_parts (string split '-' $remote_version)
+    set local_parts (string split '-' $local_version)
+
+    set remote_major $remote_parts[1]
+    set remote_minor $remote_parts[2]
+    set local_major $local_parts[1]
+    set local_minor $local_parts[2]
+
+    # Compare major versions
+    if test $remote_major -gt $local_major
+        echo 1
+        return
+    else if test $remote_major -lt $local_major
+        echo -1
+        return
+    end
+
+    # If major versions are equal, compare minor versions
+    if test $remote_minor -gt $local_minor
+        echo 1
+        return
+    else if test $remote_minor -lt $local_minor
+        echo -1
+        return
+    end
+
+    echo 0
+end
+
+function get_local_ge_version
+    # Find local GE-Proton* folder and extract version string "major-minor" (e.g., "9-27")
+    set target_dir "$HOME/.local/share/Steam/compatibilitytools.d"
+    # Match only GE-ProtonX-Y folders (e.g., GE-Proton9-27)
+    set folder (find $target_dir -maxdepth 1 -type d -name "GE-Proton[0-9]*-[0-9]*" | sort -V | tail -n 1)
+    if test -z "$folder"
+        echo ""
+        return
+    end
+    set folder_name (basename $folder)
+    # Extract first matching version in format "major-minor" (e.g., "9-27") after "GE-Proton"
+    set ge_version (string match -r 'GE-Proton([0-9]+-[0-9]+)' $folder_name | string replace 'GE-Proton' '' | head -n 1)
+    # Validate version format (e.g., "X-Y")
+    if test -z "$ge_version"
+        echo ""
+        return
+    end
+    if not string match -qr '^[0-9]+-[0-9]+$' "$ge_version"
+        echo ""
+        return
+    end
+    echo $ge_version
 end
 
 # === Install Proton-GE if selected ===
