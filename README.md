@@ -4,8 +4,8 @@ opkg install e2fsprogs parted losetup resize2fs blkid
 wget https://raw.githubusercontent.com/Sn0whax/publicscripts/refs/heads/main/expand-root.sh  
 
 #Update package lists and install required tools  
-opkg update  
-opkg install parted e2fsprogs blkid  
+```opkg update```
+```opkg install parted e2fsprogs blkid```
 
 #Verify tools are installed  
 type parted  
@@ -13,7 +13,7 @@ type resize2fs
 type blkid  
 
 #Check filesystem before resizing  
-fsck.ext4 /dev/nvme0n1p2  
+```fsck.ext4 /dev/nvme0n1p2```
 
 #Download expand-root.sh  
 ```wget -U "" -O expand-root.sh https://raw.githubusercontent.com/Sn0whax/publicscripts/refs/heads/main/expand-root.sh```
