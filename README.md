@@ -32,7 +32,7 @@
 
 #Test the script logic (dry run)  
 ``MAJOR_MINOR=$(awk '$9=="/dev/root"{print $3}' /proc/self/mountinfo)``  
-SYS_PATH="$(readlink -f /sys/dev/block/"$MAJOR_MINOR")"  
+`SYS_PATH="$(readlink -f /sys/dev/block/"$MAJOR_MINOR")"`  
 ROOT_DEV="/dev/${SYS_PATH##*/}"  
 ROOT_DISK="/dev/$(basename "${SYS_PATH%/*}")"  
 ROOT_PART="${ROOT_DEV##*[^0-9]}"  
