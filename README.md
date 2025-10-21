@@ -1,45 +1,43 @@
-expand-root.sh is for my openwrt
-
-#Try this next router update##   
+## Try this next router update##   
 opkg update   
 opkg install e2fsprogs parted losetup resize2fs blkid    
-wget https://raw.githubusercontent.com/Sn0whax/publicscripts/refs/heads/main/expand-root.sh
+wget https://raw.githubusercontent.com/Sn0whax/publicscripts/refs/heads/main/expand-root.sh   
 
-#Update package lists and install required tools
-opkg update
-opkg install parted e2fsprogs blkid
+## Update package lists and install required tools  
+opkg update   
+opkg install parted e2fsprogs blkid  
 
-#Verify tools are installed
-type parted
-type resize2fs
-type blkid
+## Verify tools are installed  
+type parted   
+type resize2fs   
+type blkid  
 
-#Check filesystem before resizing
-fsck.ext4 /dev/nvme0n1p2
+## Check filesystem before resizing  
+fsck.ext4 /dev/nvme0n1p2  
 
-#Download expand-root.sh
-wget -U "" -O expand-root.sh https://raw.githubusercontent.com/Sn0whax/publicscripts/refs/heads/main/expand-root.sh
+## Download expand-root.sh  
+wget -U "" -O expand-root.sh https://raw.githubusercontent.com/Sn0whax/publicscripts/refs/heads/main/expand-root.sh  
 
-#Verify the script (optional, to ensure compatibility)
-cat expand-root.sh
+## Verify the script (optional, to ensure compatibility)  
+cat expand-root.sh  
 
-#Source the script to create /etc/uci-defaults/70-rootpt-resize and /etc/uci-defaults/80-rootfs-resize
-. ./expand-root.sh
+## Source the script to create /etc/uci-defaults/70-rootpt-resize and /etc/uci-defaults/80-rootfs-resize  
+. ./expand-root.sh  
 
-#Verify the created scripts
-cat /etc/uci-defaults/70-rootpt-resize
-cat /etc/uci-defaults/80-rootfs-resize
-cat /etc/sysupgrade.conf
+## Verify the created scripts  
+cat /etc/uci-defaults/70-rootpt-resize   
+cat /etc/uci-defaults/80-rootfs-resize   
+cat /etc/sysupgrade.conf  
 
-#Test the script logic (dry run)
-MAJOR_MINOR=$(awk '$9=="/dev/root"{print $3}' /proc/self/mountinfo)
-SYS_PATH="$(readlink -f /sys/dev/block/"$MAJOR_MINOR")"
-ROOT_DEV="/dev/${SYS_PATH##*/}"
-ROOT_DISK="/dev/$(basename "${SYS_PATH%/*}")"
-ROOT_PART="${ROOT_DEV##*[^0-9]}"
-echo "ROOT_DEV: $ROOT_DEV"
-echo "Disk: $ROOT_DISK"
-echo "Partition: $ROOT_PART"
+## Test the script logic (dry run)  
+MAJOR_MINOR=$(awk '$9=="/dev/root"{print $3}' /proc/self/mountinfo)   
+SYS_PATH="$(readlink -f /sys/dev/block/"$MAJOR_MINOR")"   
+ROOT_DEV="/dev/${SYS_PATH##*/}"   
+ROOT_DISK="/dev/$(basename "${SYS_PATH%/*}")"   
+ROOT_PART="${ROOT_DEV##*[^0-9]}"   
+echo "ROOT_DEV: $ROOT_DEV"   
+echo "Disk: $ROOT_DISK"   
+echo "Partition: $ROOT_PART"  
 
-#Run the resize scripts (will resize partition, reboot, resize filesystem, and reboot again)
-sh /etc/uci-defaults/70-rootpt-resize
+## Run the resize scripts (will resize partition, reboot, resize filesystem, and reboot again)  
+sh /etc/uci-defaults/70-rootpt-resize  
