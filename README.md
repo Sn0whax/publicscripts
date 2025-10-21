@@ -17,8 +17,7 @@
 `fsck.ext4 /dev/nvme0n1p2`
 
 #Download expand-root.sh  
-`wget -U "" -O expand-root.sh \
-  https://raw.githubusercontent.com/Sn0whax/publicscripts/refs/heads/main/expand-root.sh`
+`wget https://raw.githubusercontent.com/Sn0whax/publicscripts/refs/heads/main/expand-root.sh`
 
 
 #Verify the script (optional, to ensure compatibility)  
