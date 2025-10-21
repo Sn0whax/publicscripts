@@ -5,8 +5,8 @@ opkg update
 opkg install e2fsprogs parted losetup resize2fs blkid    
 wget https://raw.githubusercontent.com/Sn0whax/publicscripts/refs/heads/main/expand-root.sh
 
-
-# Update package lists and install required tools
+**
+# Update package lists and install required tools**********
 opkg update
 opkg install parted e2fsprogs blkid
 
