@@ -4,15 +4,14 @@
 set TOKEN "TOKEN_HERE"
 
 # === Update Selection Prompt ===
-echo "Select an option:"
+echo "👽Select an option:"
 echo "1) Update both Proton-CachyOS SLR v3 and Proton-TKG-WineUP-NTSYNC"
 echo "2) Update both Proton-CachyOS SLR v3 and Proton-GE"
 echo "3) Update only Proton-TKG-WineUP-NTSYNC (Requires GitHub API Token)"
 echo "4) Update only Proton-CachyOS SLR v3"
 echo "5) Update only Proton-GE"
 echo "6) Update Proton-TKG-WineUP-NTSYNC, Proton-CachyOS, and Proton-GE"
-echo -n "Enter your choice (1-6): "
-read -l USER_INPUT
+read -P "Enter your choice (1-6): " USER_INPUT
 
 set INSTALL_TKG 0
 set INSTALL_CACHY 0
