@@ -1,16 +1,17 @@
 #!/usr/bin/env fish
 
-# GitHub API token for Proton-TKG update (required for Syntist Proton-TKG)
-set TOKEN "YOUR_TOKEN_HERE"
+# GitHub API token for Proton-TKG-WineUP-NTSYNC update (required for Proton-TKG-WineUP-NTSYNC)
+set TOKEN "TOKEN HERE"
 
 # === Update Selection Prompt ===
 echo "Select an option:"
-echo "1) Update both Proton-CachyOS SLR v3 and Proton-GE"
-echo "2) Update only Syntist Proton-TKG (Requires GitHub API Token)"
-echo "3) Update only Proton-CachyOS SLR v3"
-echo "4) Update only Proton-GE"
-echo "5) Update Syntist Proton-TKG, Proton-CachyOS, and Proton-GE"
-echo -n "Enter your choice (1-5): "
+echo "1) Update both Proton-CachyOS SLR v3 and Proton-TKG-WineUP-NTSYNC"
+echo "2) Update both Proton-CachyOS SLR v3 and Proton-GE"
+echo "3) Update only Proton-TKG-WineUP-NTSYNC (Requires GitHub API Token)"
+echo "4) Update only Proton-CachyOS SLR v3"
+echo "5) Update only Proton-GE"
+echo "6) Update Proton-TKG-WineUP-NTSYNC, Proton-CachyOS, and Proton-GE"
+echo -n "Enter your choice (1-6): "
 read -l USER_INPUT
 
 set INSTALL_TKG 0
@@ -18,75 +19,79 @@ set INSTALL_CACHY 0
 set INSTALL_GE 0
 switch $USER_INPUT
     case 1
+        echo "Proceeding with Proton-CachyOS and Proton-TKG-WineUP-NTSYNC updates..."
+        set INSTALL_CACHY 1
+        set INSTALL_TKG 1
+    case 2
         echo "Proceeding with Proton-CachyOS and Proton-GE updates..."
         set INSTALL_CACHY 1
         set INSTALL_GE 1
-    case 2
-        echo "Proceeding with only Syntist Proton-TKG update..."
-        set INSTALL_TKG 1
     case 3
+        echo "Proceeding with only Proton-TKG-WineUP-NTSYNC update..."
+        set INSTALL_TKG 1
+    case 4
         echo "Proceeding with only Proton-CachyOS update..."
         set INSTALL_CACHY 1
-    case 4
+    case 5
         echo "Proceeding with only Proton-GE update..."
         set INSTALL_GE 1
-    case 5
-        echo "Proceeding with Syntist Proton-TKG, Proton-CachyOS, and Proton-GE updates..."
+    case 6
+        echo "Proceeding with Proton-TKG-WineUP-NTSYNC, Proton-CachyOS, and Proton-GE updates..."
         set INSTALL_TKG 1
         set INSTALL_CACHY 1
         set INSTALL_GE 1
     case '*'
-        echo "Invalid input. Please enter 1, 2, 3, 4, or 5."
+        echo "Invalid input. Please enter 1, 2, 3, 4, 5, or 6."
         exit 1
 end
 
 set TARGET_DIR "$HOME/.local/share/Steam/compatibilitytools.d"
 mkdir -p $TARGET_DIR
 
-# === Install Proton-TKG if selected ===
+# === Install Proton-TKG-WineUP-NTSYNC if selected ===
 if test $INSTALL_TKG -eq 1
-    set REPO "Syntist/proton-tkg-builder"
+    set REPO "Frogging-Family/wine-tkg-git"
     set GITHUB_API "https://api.github.com/repos/$REPO/actions/runs"
 
-    echo "Fetching the latest workflow runs for Syntist Proton-TKG..."
+    echo "Fetching the latest workflow runs for Proton-TKG-WineUP-NTSYNC..."
     set RUNS (curl -s -H "Authorization: token $TOKEN" \
         -H "Accept: application/vnd.github+json" \
         $GITHUB_API)
 
     if test (echo $RUNS | jq -r '.workflow_runs | length') -eq 0
-        echo "No workflow runs found for Syntist Proton-TKG."
+        echo "No workflow runs found for Proton-TKG-WineUP-NTSYNC."
         exit 1
     end
 
     set LATEST_RUN (echo $RUNS | jq -r '.workflow_runs | map(select(.status == "completed" and .conclusion == "success")) | sort_by(.created_at) | last')
 
     if test -z "$LATEST_RUN"
-        echo "No successful workflow runs found for Syntist Proton-TKG."
+        echo "No successful workflow runs found for Proton-TKG-WineUP-NTSYNC."
         exit 1
     end
 
     set RUN_ID (echo $LATEST_RUN | jq -r '.id')
-    echo "Latest successful run ID for Syntist Proton-TKG: $RUN_ID"
+    echo "Latest successful run ID for Proton-TKG-WineUP-NTSYNC: $RUN_ID"
 
-    # Check existing installed Proton-TKG folder for embedded run ID
-    set installed_folder (find $TARGET_DIR -maxdepth 1 -type d -name "proton_tkg_*" | head -n 1)
+    # Check existing installed Proton-TKG-WineUP-NTSYNC folder for embedded run ID
+    set installed_folder (find $TARGET_DIR -maxdepth 1 -type d -name "wine-tkg-staging-git-*" | head -n 1)
     if test -z "$installed_folder"
-        echo "No existing Proton-TKG installation found. Proceeding with update."
+        echo "No existing Proton-TKG-WineUP-NTSYNC installation found. Proceeding with update."
         set proceed_update 1
     else
         set folder_name (basename $installed_folder)
-        # Extract run ID from folder name, expecting pattern like proton_tkg_10.5.r5_run12345
+        # Extract run ID from folder name, expecting pattern like wine-tkg-staging-git-10.17.r5.gfa2f3233_run12345
         set run_id_str (string match -r 'run[0-9]+' $folder_name)
         if test -z "$run_id_str"
-            echo "Existing Proton-TKG folder does not contain run ID. Proceeding with update."
+            echo "Existing Proton-TKG-WineUP-NTSYNC folder does not contain run ID. Proceeding with update."
             set proceed_update 1
         else
             set local_run_id (string replace 'run' '' $run_id_str)
             if test $RUN_ID -le $local_run_id
-                echo "Installed Proton-TKG is up to date (run ID $local_run_id). Skipping update."
+                echo "Installed Proton-TKG-WineUP-NTSYNC is up to date (run ID $local_run_id). Skipping update."
                 set proceed_update 0
             else
-                echo "Newer Proton-TKG update detected (local run ID $local_run_id < latest run ID $RUN_ID). Proceeding with update."
+                echo "Newer Proton-TKG-WineUP-NTSYNC update detected (local run ID $local_run_id < latest run ID $RUN_ID). Proceeding with update."
                 set proceed_update 1
             end
         end
@@ -94,16 +99,16 @@ if test $INSTALL_TKG -eq 1
 
     if test $proceed_update -eq 1
         if test (echo $LATEST_RUN | jq -r '.conclusion') = "success"
-            echo "Deleting old Proton-TKG folders..."
-            set OLD_FOLDERS (find $TARGET_DIR -maxdepth 1 -type d -name "proton_tkg_*")
+            echo "Deleting old Proton-TKG-WineUP-NTSYNC folders..."
+            set OLD_FOLDERS (find $TARGET_DIR -maxdepth 1 -type d -name "wine-tkg-staging-git-*")
             if test -n "$OLD_FOLDERS"
                 rm -rf $OLD_FOLDERS
-                echo "Old Proton-TKG folders deleted."
+                echo "Old Proton-TKG-WineUP-NTSYNC folders deleted."
             else
-                echo "No old Proton-TKG folders found."
+                echo "No old Proton-TKG-WineUP-NTSYNC folders found."
             end
         else
-            echo "Latest Proton-TKG build did not succeed. Aborting update."
+            echo "Latest Proton-TKG-WineUP-NTSYNC build did not succeed. Aborting update."
             exit 1
         end
 
@@ -117,32 +122,32 @@ if test $INSTALL_TKG -eq 1
         set ARTIFACT_NAME (echo $ARTIFACT_INFO | jq -r '.artifacts[0].name')
 
         if test -z "$ARTIFACT_URL"
-            echo "No artifacts found for this Proton-TKG run."
+            echo "No artifacts found for this Proton-TKG-WineUP-NTSYNC run."
             exit 1
         end
 
         set ZIP_FILE "$TARGET_DIR/$ARTIFACT_NAME.zip"
-        echo "Downloading Proton-TKG artifact to $ZIP_FILE..."
+        echo "Downloading Proton-TKG-WineUP-NTSYNC artifact to $ZIP_FILE..."
         curl -L -H "Authorization: token $TOKEN" \
             -H "Accept: application/vnd.github+json" \
             $ARTIFACT_URL -o $ZIP_FILE
 
         if test $status -ne 0
-            echo "Failed to download Proton-TKG artifact."
+            echo "Failed to download Proton-TKG-WineUP-NTSYNC artifact."
             exit 1
         end
 
         echo "Extracting $ZIP_FILE..."
         unzip -q $ZIP_FILE -d $TARGET_DIR
         if test $status -ne 0
-            echo "Failed to extract Proton-TKG .zip file."
+            echo "Failed to extract Proton-TKG-WineUP-NTSYNC .zip file."
             rm $ZIP_FILE
             exit 1
         end
 
         set TAR_FILE (find $TARGET_DIR -maxdepth 1 -type f -name "*.tar" | head -n 1)
         if test -z "$TAR_FILE"
-            echo "No .tar file found inside Proton-TKG .zip."
+            echo "No .tar file found inside Proton-TKG-WineUP-NTSYNC .zip."
             rm $ZIP_FILE
             exit 1
         end
@@ -150,7 +155,7 @@ if test $INSTALL_TKG -eq 1
         echo "Extracting $TAR_FILE..."
         tar -xf $TAR_FILE -C $TARGET_DIR
         if test $status -ne 0
-            echo "Failed to extract Proton-TKG .tar file."
+            echo "Failed to extract Proton-TKG-WineUP-NTSYNC .tar file."
             rm $ZIP_FILE
             exit 1
         end
@@ -160,18 +165,18 @@ if test $INSTALL_TKG -eq 1
         rm $TAR_FILE
 
         # Rename extracted folder to include run ID
-        # Find the extracted proton_tkg_* folder (should be only one)
-        set extracted_folder (find $TARGET_DIR -maxdepth 1 -type d -name "proton_tkg_*" | head -n 1)
+        # Find the extracted wine-tkg-staging-git-* folder (should be only one)
+        set extracted_folder (find $TARGET_DIR -maxdepth 1 -type d -name "wine-tkg-staging-git-*" | head -n 1)
         if test -z "$extracted_folder"
-            echo "Could not find extracted Proton-TKG folder to rename."
+            echo "Could not find extracted Proton-TKG-WineUP-NTSYNC folder to rename."
             exit 1
         end
 
         set new_folder_name (basename $extracted_folder)_run$RUN_ID
         mv $extracted_folder "$TARGET_DIR/$new_folder_name"
-        echo "Renamed Proton-TKG folder to $new_folder_name"
+        echo "Renamed Proton-TKG-WineUP-NTSYNC folder to $new_folder_name"
 
-        echo "Proton-TKG installed in $TARGET_DIR."
+        echo "Proton-TKG-WineUP-NTSYNC installed in $TARGET_DIR."
         echo "Ensure PROTON_STANDALONE_START = 1 and UMU_NO_RUNTIME = 1 in Env Var"
     end
 end
